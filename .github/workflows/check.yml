@@ -1,0 +1,21 @@
+# Every pull request and every push to main checks plugins.jsonl: the lines, and each plugin's zip (download, SHA-256, its stl-plugin.json).
+name: check
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the index
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/check_index.py plugins.jsonl
