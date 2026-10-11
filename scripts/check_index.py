@@ -57,7 +57,11 @@ def check_fields(e):
 
 def check_zip(e):
     """What is wrong with a line's zip."""
-    data = get(e['download'])
+    return check_bytes(e, get(e['download']))
+
+
+def check_bytes(e, data):
+    """What is wrong with a line's zip, downloaded."""
     got = hashlib.sha256(data).hexdigest()
     if got != e['sha256']:
         return [f'the zip\'s SHA-256 is {got}, not {e["sha256"]}']

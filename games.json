@@ -1,0 +1,4 @@
+{
+  "_": "The game version of each stellaris.exe build (its PE timestamp, as plugins declare it in stl-plugin.json game.exe_timestamps). Add a line when the game updates.",
+  "0x6ABEAA3F": "4.5.2"
+}

@@ -1,13 +1,12 @@
 """Makes the plugins.jsonl line of a plugin from a release on GitHub: downloads its zip, reads the stl-plugin.json in it, and works out the
-SHA-256. For authors: put the line it prints into plugins.jsonl (replacing the old one of the same id) and open a pull request.
+SHA-256. scripts/build_index.py does this for every repository of sources.jsonl; this script shows one line, to see what the index will say:
 
-    python scripts/plugin_entry.py <owner/repo> [--tag v1.2.0] [--asset 'my-plugin-*.zip'] [--author NAME] [--tags a,b] [--game-version 4.5.2]
+    python scripts/plugin_entry.py <owner/repo> [--tag v1.2.0] [--asset 'my-plugin-*.zip'] [--author NAME] [--tags a,b]
 
 The release must have one zip holding stl-plugin.json and the DLL (at its root or in one folder). Only the Python standard library is needed;
 set GITHUB_TOKEN to avoid the API's limit for anonymous use.
 """
 import argparse
-import datetime
 import fnmatch
 import hashlib
 import io
@@ -18,6 +17,7 @@ import urllib.request
 import zipfile
 
 MANIFEST = 'stl-plugin.json'
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def get(url, accept=None):
@@ -32,7 +32,7 @@ def get(url, accept=None):
 
 
 def manifest_in(zip_bytes):
-    """The stl-plugin.json of a plugin zip (at its root or in one folder), and the names in the zip."""
+    """The stl-plugin.json of a plugin zip (at its root or in one folder), the folder it is in, and the names in the zip."""
     z = zipfile.ZipFile(io.BytesIO(zip_bytes))
     names = z.namelist()
     for name in names:
@@ -43,14 +43,35 @@ def manifest_in(zip_bytes):
     raise ValueError(f'the zip holds no {MANIFEST} at its root or in one folder')
 
 
-def entry(repo, tag=None, asset=None, author=None, tags=None, game_version=None):
+def game_versions():
+    """The game version of each stellaris.exe build (games.json)."""
+    try:
+        table = json.load(open(os.path.join(ROOT, 'games.json'), encoding='utf-8'))
+    except OSError:
+        return {}
+    return {k.lower(): v for k, v in table.items() if k.startswith('0x')}
+
+
+def repo_of(s):
+    """owner/repo of a GitHub address (or of owner/repo itself)."""
+    s = s.strip().removesuffix('/').removesuffix('.git')
+    s = s.removeprefix('https://github.com/')
+    parts = s.split('/')
+    if len(parts) != 2 or not all(parts):
+        raise ValueError(f'{s!r} is not a GitHub repository')
+    return '/'.join(parts)
+
+
+def entry(repo, tag=None, asset=None, author=None, tags=None):
+    """The index line of a repository's latest release (or of one tag)."""
+    repo = repo_of(repo)
     api = f'https://api.github.com/repos/{repo}'
     info = json.loads(get(api))
     rel = json.loads(get(f'{api}/releases/tags/{tag}' if tag else f'{api}/releases/latest'))
     zips = [a for a in rel['assets'] if a['name'].lower().endswith('.zip') and (not asset or fnmatch.fnmatch(a['name'], asset))]
     if len(zips) != 1:
         names = ', '.join(a['name'] for a in rel['assets'])
-        raise SystemExit(f'release {rel["tag_name"]} of {repo} has {len(zips)} zips matching {asset or "*.zip"} (assets: {names}); pass --asset')
+        raise ValueError(f'release {rel["tag_name"]} of {repo} has {len(zips)} zips matching {asset or "*.zip"} (assets: {names}); give "asset"')
     url = zips[0]['browser_download_url']
     data = get(url)
     m, _, _ = manifest_in(data)
@@ -67,8 +88,10 @@ def entry(repo, tag=None, asset=None, author=None, tags=None, game_version=None)
     builds = (m.get('game') or {}).get('exe_timestamps') or []
     if builds:
         e['game_builds'] = builds
-    if game_version:
-        e['game_version'] = game_version
+        known = game_versions()
+        versions = sorted({known[b.lower()] for b in builds if b.lower() in known})
+        if versions:
+            e['game_version'] = ' / '.join(versions)
     if tags:
         e['tags'] = tags
     if m.get('homepage') and m['homepage'] != info['html_url']:
@@ -76,8 +99,15 @@ def entry(repo, tag=None, asset=None, author=None, tags=None, game_version=None)
     spdx = (info.get('license') or {}).get('spdx_id')
     if spdx and spdx != 'NOASSERTION':
         e['license'] = spdx
-    e['updated'] = datetime.date.today().isoformat()
-    return e
+    # the release's date, so that the line changes only with a new release
+    e['updated'] = (rel.get('published_at') or rel.get('created_at') or '')[:10] or None
+    if e['updated'] is None:
+        del e['updated']
+    return e, data
+
+
+def line(e):
+    return json.dumps(e, ensure_ascii=False, separators=(',', ':'))
 
 
 if __name__ == '__main__':
@@ -87,8 +117,7 @@ if __name__ == '__main__':
     ap.add_argument('--asset', help="the zip's name, * as a wildcard, when the release has more than one")
     ap.add_argument('--author')
     ap.add_argument('--tags', help='comma-separated, lower case')
-    ap.add_argument('--game-version')
     a = ap.parse_args()
     tags = [t.strip() for t in a.tags.split(',') if t.strip()] if a.tags else None
-    line = json.dumps(entry(a.repo, a.tag, a.asset, a.author, tags, a.game_version), ensure_ascii=False, separators=(',', ':'))
-    sys.stdout.buffer.write((line + '\n').encode('utf-8'))
+    e, _ = entry(a.repo, a.tag, a.asset, a.author, tags)
+    sys.stdout.buffer.write((line(e) + '\n').encode('utf-8'))

@@ -1,9 +1,8 @@
-# Every pull request and every push to main checks plugins.jsonl: the lines, and each plugin's zip (download, SHA-256, its stl-plugin.json).
+# Pull requests (adding or changing a line of sources.jsonl): every repository there must have a usable latest release, and plugins.jsonl
+# must still be well formed. plugins.jsonl itself is written by the update workflow, not by hand.
 name: check
 on:
   pull_request:
-  push:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -15,7 +14,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Check the index
+      - name: Each source has a usable latest release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python scripts/check_index.py plugins.jsonl
+        run: python scripts/build_index.py --check
+      - name: plugins.jsonl is well formed
+        run: python scripts/check_index.py plugins.jsonl --offline

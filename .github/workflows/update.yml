@@ -1,0 +1,35 @@
+# Every hour (and on demand, and when the sources change): plugins.jsonl is built again from sources.jsonl — each repository's latest
+# release — and committed when it changed. So a plugin's new release reaches the index without anyone editing it.
+name: update
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [sources.jsonl, games.json, "scripts/**"]
+permissions:
+  contents: write
+concurrency:
+  group: update
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build plugins.jsonl from the latest releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/build_index.py
+      - name: Commit it when it changed
+        run: |
+          if git diff --quiet -- plugins.jsonl; then echo "plugins.jsonl unchanged"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add plugins.jsonl
+          git commit -m "plugins.jsonl: the latest releases"
+          git push
