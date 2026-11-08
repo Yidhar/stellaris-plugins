@@ -1,5 +1,7 @@
 # Every hour (and on demand, and when the sources change): plugins.jsonl is built again from sources.jsonl — each repository's latest
 # release — and committed when it changed. So a plugin's new release reaches the index without anyone editing it.
+# Then the `mirror` job copies the plugins to the launcher's mirror (Cloudflare R2) and publishes the mirror's signed index
+# (scripts/mirror_index.py). Its secrets are in the `mirror` environment, which only main may use; no other job sees them.
 name: update
 on:
   schedule:
@@ -33,3 +35,24 @@ jobs:
           git add plugins.jsonl
           git commit -m "plugins.jsonl: the latest releases"
           git push
+  mirror:
+    needs: update
+    runs-on: ubuntu-latest
+    environment: mirror
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main  # with the plugins.jsonl the update job may just have pushed
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install cryptography==46.0.5 boto3==1.43.126
+      - name: Copy the plugins to the mirror and publish its signed index
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PLUGIN_INDEX_SIGNING_KEY: ${{ secrets.PLUGIN_INDEX_SIGNING_KEY }}
+        run: python scripts/mirror_index.py
