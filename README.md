@@ -43,7 +43,7 @@ https://raw.githubusercontent.com/Yidhar/stellaris-plugins/main/plugins.jsonl
 游戏更新后，在 `games.json` 里加一行新的 exe 时间戳 → 游戏版本，索引里就会显示插件适配的游戏版本号。
 
 **镜像**：每次更新后，`update` 工作流的 `mirror` 任务会把每个插件的 zip（先核对 SHA-256）复制到启动器的镜像
-`https://dl.stellarismod.com/plugins/<id>/v<版本>/`，再发布镜像的索引 `plugins/index.json`，并用只有这个 CI 持有的密钥签名
+`https://plugins.stellarismod.com/<id>/v<版本>/`（独立的 R2 桶 `stellaris-plugins`），再发布镜像的索引 `index.json`，并用只有这个 CI 持有的密钥签名
 （`scripts/mirror_index.py`）。启动器先读镜像，签名不对或连不上就改读这里的 `plugins.jsonl`；下载也先走镜像、再走 GitHub，
 两边都必须符合索引里的 SHA-256。
 
@@ -94,7 +94,7 @@ When the game updates, a line in `games.json` (the new exe timestamp → the gam
 made for.
 
 **Mirror.** After each update the `mirror` job of the `update` workflow copies every plugin's zip (its SHA-256 checked first) to the
-launcher's mirror, `https://dl.stellarismod.com/plugins/<id>/v<version>/`, and publishes the mirror's index, `plugins/index.json`, signed
+launcher's mirror, `https://plugins.stellarismod.com/<id>/v<version>/` (an R2 bucket of its own, `stellaris-plugins`), and publishes the mirror's index, `index.json`, signed
 with a key only this CI holds (`scripts/mirror_index.py`). The launcher reads the mirror first and this `plugins.jsonl` when the mirror
 cannot be reached or its signature does not verify; downloads too come from the mirror first, then GitHub, and must match the index's
 SHA-256 either way.

@@ -1,11 +1,12 @@
-"""Copies the plugins of plugins.jsonl to the launcher's mirror (Cloudflare R2, served at https://dl.stellarismod.com/plugins/) and
+"""Copies the plugins of plugins.jsonl to the launcher's mirror (the Cloudflare R2 bucket stellaris-plugins, served at
+https://plugins.stellarismod.com/) and
 publishes the mirror's index, signed. Run by the `update` workflow after plugins.jsonl is built.
 
     python scripts/mirror_index.py [--dry-run] [--key private.pem]
 
 1. Each plugin's zip is downloaded from its GitHub release, checked against the SHA-256 in plugins.jsonl, and uploaded to
-   plugins/<id>/v<version>/<file> once (a copy already there is left alone: those paths never change).
-2. plugins/index.json is {"manifest": <the index as JSON text>, "signature": <Ed25519, hex>}. In the manifest each plugin's `download` is
+   <id>/v<version>/<file> once (a copy already there is left alone: those paths never change).
+2. index.json is {"manifest": <the index as JSON text>, "signature": <Ed25519, hex>}. In the manifest each plugin's `download` is
    its copy on the mirror and `fallback` the GitHub asset; the launcher reads it only when the signature verifies with the public key built
    into it, and takes a zip from either place only when it matches the SHA-256. So whoever can write to the bucket cannot change what is
    installed. It is uploaded last, and only when it changed.
@@ -29,9 +30,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 INDEX = ROOT / 'plugins.jsonl'
-BUCKET = 'stellaris-modswiki'
-PREFIX = 'plugins'
-PUBLIC = 'https://dl.stellarismod.com/plugins'
+BUCKET = 'stellaris-plugins'  # its own bucket: the CI's token cannot touch the launcher's files
+PUBLIC = 'https://plugins.stellarismod.com'
 PRODUCT = 'stellaris-plugins'
 UA = 'stellaris-plugins-mirror'  # Cloudflare turns away Python's default User-Agent
 IMMUTABLE = 'public, max-age=31536000, immutable'
@@ -121,7 +121,7 @@ def main():
                 else:
                     f = tmp / name
                     f.write_bytes(data)
-                    put(f, f'{PREFIX}/{path}', 'application/zip', IMMUTABLE)
+                    put(f, path, 'application/zip', IMMUTABLE)
                     print(f'{e["id"]} {e["version"]}: uploaded {url}')
             mirrored.append({**e, 'download': url, 'fallback': e['download']})
 
@@ -141,7 +141,7 @@ def main():
             return
         f = tmp / 'index.json'
         f.write_text(json.dumps({'manifest': manifest, 'signature': signature}, ensure_ascii=False), encoding='utf-8')
-        put(f, f'{PREFIX}/index.json', 'application/json; charset=utf-8', SHORT)
+        put(f, 'index.json', 'application/json; charset=utf-8', SHORT)
         print(f'index.json updated ({len(mirrored)} plugin(s))')
 
 
