@@ -1,5 +1,6 @@
-# Every hour (and on demand, and when the sources change): plugins.jsonl is built again from sources.jsonl — each repository's latest
-# release — and committed when it changed. So a plugin's new release reaches the index without anyone editing it.
+# Every hour (and on demand, and when the sources change): the plugins stellarismod.com lists that sources.jsonl lacks are added to it
+# (scripts/merge_site_sources.py), then plugins.jsonl is built again from sources.jsonl — each repository's latest release — and both
+# are committed when they changed. So a plugin's new release reaches the index without anyone editing it.
 # Then the `mirror` job copies the plugins to the launcher's mirror (Cloudflare R2) and publishes the mirror's signed index
 # (scripts/mirror_index.py). Its secrets are in the `mirror` environment, which only main may use; no other job sees them.
 name: update
@@ -23,17 +24,20 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Add the plugins stellarismod.com lists
+        run: python scripts/merge_site_sources.py
       - name: Build plugins.jsonl from the latest releases
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/build_index.py
-      - name: Commit it when it changed
+      - name: Commit them when they changed
         run: |
-          if git diff --quiet -- plugins.jsonl; then echo "plugins.jsonl unchanged"; exit 0; fi
+          if git diff --quiet -- plugins.jsonl sources.jsonl; then echo "plugins.jsonl and sources.jsonl unchanged"; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add plugins.jsonl
-          git commit -m "plugins.jsonl: the latest releases"
+          git add plugins.jsonl sources.jsonl
+          if git diff --cached --quiet -- sources.jsonl; then msg="plugins.jsonl: the latest releases"; else msg="sources.jsonl: plugins listed on stellarismod.com; plugins.jsonl: the latest releases"; fi
+          git commit -m "$msg"
           git push
   mirror:
     needs: update

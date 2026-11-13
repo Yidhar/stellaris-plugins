@@ -35,6 +35,10 @@ https://raw.githubusercontent.com/Yidhar/stellaris-plugins/main/plugins.jsonl
    Release 里有多个 zip 时加 `"asset":"名字-v*.zip"`；作者名默认是仓库所有者，可以用 `"author"` 改。
 3. CI 会取你的最新 Release 检查（zip、清单、DLL）。合并后，索引在一小时内出现你的插件。
 
+也可以不提 Pull Request：在 [stellarismod.com 的投稿页](https://stellarismod.com/creator)选「收录原生插件」，贴上仓库链接。
+本站管理员看过后，`update` 工作流下一次运行时会把它加进 `sources.jsonl`（`scripts/merge_site_sources.py` 读取
+`https://stellarismod.com/api/v1/plugin-sources.jsonl`，只添加这里还没有的仓库，从不删除）。
+
 **之后发新版本只要在你的仓库发 Release**，索引每小时自动跟上（维护者也可以在 Actions 里手动运行 `update`）。新 Release 不能用时（比如 zip 里没有清单），
 索引保留上一个能用的版本，并在运行记录里报告。
 
@@ -83,6 +87,11 @@ and its [handbook](https://github.com/Yidhar/stellaris-launcher/blob/main/docs/P
    Add `"asset":"name-v*.zip"` when your releases have more than one zip; the author is the repository's owner unless `"author"` says
    otherwise.
 3. CI checks your latest release (the zip, its manifest, the DLL). Once merged, the plugin is in the index within the hour.
+
+Or skip the pull request: on [stellarismod.com's submission page](https://stellarismod.com/creator) pick 收录原生插件 and paste the
+repository's link. Once one of the site's admins has looked at it, the next run of the `update` workflow adds it to `sources.jsonl`
+(`scripts/merge_site_sources.py` reads `https://stellarismod.com/api/v1/plugin-sources.jsonl`, adds only repositories not here yet, and
+never removes one).
 
 **After that, a new release in your repository is all an update takes**: the index follows every hour (maintainers can also run the
 `update` workflow by hand). When a new release cannot be used (no manifest in the zip, say), the index keeps the last usable version and
